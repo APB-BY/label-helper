@@ -40,6 +40,10 @@
   .status { min-height: 1.5em; margin: 0; }
   .status.error { color: var(--err); } .status.ok { color: var(--ok); font-weight: 600; }
   .help h2 { font-size: 16px; margin: 0 0 8px; }
+  .diag textarea { width: 100%; box-sizing: border-box; min-height: 220px; margin-top: 10px; font: 12px/1.4 ui-monospace, Consolas, monospace;
+                   border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  .diag p { margin: 0 0 8px; color: var(--muted); font-size: 14px; }
+  .secondary { padding: 8px 14px; border: 1px solid var(--line); background: #fff; border-radius: 8px; font: inherit; cursor: pointer; }
   .help ol { margin: 0; padding-left: 20px; }
   .help li { margin-bottom: 6px; }
   code { font-size: 13px; background: #f1f3f5; padding: 1px 4px; border-radius: 4px; word-break: break-all; }
@@ -86,6 +90,13 @@
   </section>
 
   <p class="status" id="status" role="status"></p>
+
+  <section class="card diag" id="diag">
+    <p>Having trouble? Diagnose asks the DYMO software to preview a few test labels (nothing prints) and shows its full answer. Copy the results and send them to whoever maintains the sheet.</p>
+    <button class="secondary" id="diagBtn">Diagnose</button>
+    <button class="secondary" id="copyDiag" hidden>Copy results</button>
+    <textarea id="diagOut" readonly hidden aria-label="Diagnose results"></textarea>
+  </section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/gh/dymosoftware/dymo-connect-framework@master/dymo.connect.framework.js"
@@ -292,6 +303,60 @@ async function sendConnectLabel(xml, copies) {
   }
 }
 
+/* ---------- Diagnose: talk to the DYMO service directly to see its full error messages ---------- */
+const SAVED_DYMO_LABEL = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<DesktopLabel Version=\"1\">\n  <DYMOLabel Version=\"4\">\n    <Description>DYMO Label</Description>\n    <Orientation>Portrait</Orientation>\n    <LabelName>1933083 Drbl 1 x 1 in</LabelName>\n    <InitialLength>0</InitialLength>\n    <BorderStyle>SolidLine</BorderStyle>\n    <DYMORect>\n      <DYMOPoint>\n        <X>0.039999966</X>\n        <Y>0.1</Y>\n      </DYMOPoint>\n      <Size>\n        <Width>0.90333337</Width>\n        <Height>0.84</Height>\n      </Size>\n    </DYMORect>\n    <BorderColor>\n      <SolidColorBrush>\n        <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n      </SolidColorBrush>\n    </BorderColor>\n    <BorderThickness>1</BorderThickness>\n    <Show_Border>False</Show_Border>\n    <HasFixedLength>False</HasFixedLength>\n    <FixedLengthValue>0</FixedLengthValue>\n    <DynamicLayoutManager>\n      <RotationBehavior>ClearObjects</RotationBehavior>\n      <LabelObjects>\n        <TextObject>\n          <Name>TextObject0</Name>\n          <Brushes>\n            <BackgroundBrush>\n              <SolidColorBrush>\n                <Color A=\"0\" R=\"0\" G=\"0\" B=\"0\"></Color>\n              </SolidColorBrush>\n            </BackgroundBrush>\n            <BorderBrush>\n              <SolidColorBrush>\n                <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n              </SolidColorBrush>\n            </BorderBrush>\n            <StrokeBrush>\n              <SolidColorBrush>\n                <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n              </SolidColorBrush>\n            </StrokeBrush>\n            <FillBrush>\n              <SolidColorBrush>\n                <Color A=\"0\" R=\"0\" G=\"0\" B=\"0\"></Color>\n              </SolidColorBrush>\n            </FillBrush>\n          </Brushes>\n          <Rotation>Rotation0</Rotation>\n          <OutlineThickness>1</OutlineThickness>\n          <IsOutlined>False</IsOutlined>\n          <BorderStyle>SolidLine</BorderStyle>\n          <Margin>\n            <DYMOThickness Left=\"0\" Top=\"0\" Right=\"0\" Bottom=\"0\" />\n          </Margin>\n          <HorizontalAlignment>Center</HorizontalAlignment>\n          <VerticalAlignment>Middle</VerticalAlignment>\n          <FitMode>AlwaysFit</FitMode>\n          <IsVertical>False</IsVertical>\n          <FormattedText>\n            <FitMode>AlwaysFit</FitMode>\n            <HorizontalAlignment>Center</HorizontalAlignment>\n            <VerticalAlignment>Middle</VerticalAlignment>\n            <IsVertical>False</IsVertical>\n            <LineTextSpan>\n              <TextSpan>\n                <Text>Nalgene 1 QC</Text>\n                <FontInfo>\n                  <FontName>Arial</FontName>\n                  <FontSize>9.8</FontSize>\n                  <IsBold>True</IsBold>\n                  <IsItalic>False</IsItalic>\n                  <IsUnderline>False</IsUnderline>\n                  <FontBrush>\n                    <SolidColorBrush>\n                      <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n                    </SolidColorBrush>\n                  </FontBrush>\n                </FontInfo>\n              </TextSpan>\n            </LineTextSpan>\n            <LineTextSpan>\n              <TextSpan>\n                <Text>2348</Text>\n                <FontInfo>\n                  <FontName>Arial</FontName>\n                  <FontSize>9.8</FontSize>\n                  <IsBold>True</IsBold>\n                  <IsItalic>False</IsItalic>\n                  <IsUnderline>False</IsUnderline>\n                  <FontBrush>\n                    <SolidColorBrush>\n                      <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n                    </SolidColorBrush>\n                  </FontBrush>\n                </FontInfo>\n              </TextSpan>\n            </LineTextSpan>\n            <LineTextSpan>\n              <TextSpan>\n                <Text>927</Text>\n                <FontInfo>\n                  <FontName>Arial</FontName>\n                  <FontSize>9.8</FontSize>\n                  <IsBold>True</IsBold>\n                  <IsItalic>False</IsItalic>\n                  <IsUnderline>False</IsUnderline>\n                  <FontBrush>\n                    <SolidColorBrush>\n                      <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n                    </SolidColorBrush>\n                  </FontBrush>\n                </FontInfo>\n              </TextSpan>\n            </LineTextSpan>\n            <LineTextSpan>\n              <TextSpan>\n                <Text>9/29/26</Text>\n                <FontInfo>\n                  <FontName>Arial</FontName>\n                  <FontSize>9.8</FontSize>\n                  <IsBold>True</IsBold>\n                  <IsItalic>False</IsItalic>\n                  <IsUnderline>False</IsUnderline>\n                  <FontBrush>\n                    <SolidColorBrush>\n                      <Color A=\"1\" R=\"0\" G=\"0\" B=\"0\"></Color>\n                    </SolidColorBrush>\n                  </FontBrush>\n                </FontInfo>\n              </TextSpan>\n            </LineTextSpan>\n          </FormattedText>\n          <ObjectLayout>\n            <DYMOPoint>\n              <X>0.03999996</X>\n              <Y>0.10000001</Y>\n            </DYMOPoint>\n            <Size>\n              <Width>0.9033335</Width>\n              <Height>0.82000005</Height>\n            </Size>\n          </ObjectLayout>\n        </TextObject>\n      </LabelObjects>\n    </DynamicLayoutManager>\n  </DYMOLabel>\n  <LabelApplication>Blank</LabelApplication>\n  <DataTable>\n    <Columns></Columns>\n    <Rows></Rows>\n  </DataTable>\n</DesktopLabel>";
+
+async function dymoRequest(command, fields) {
+  const body = new URLSearchParams(fields).toString();
+  let lastErr;
+  for (let port = 41951; port <= 41960; port++) {
+    try {
+      const res = await fetch(`https://127.0.0.1:${port}/DYMO/DLS/Printing/${command}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body
+      });
+      return { port, status: res.status, text: await res.text() };
+    } catch (err) { lastErr = err; }
+  }
+  throw lastErr;
+}
+
+async function runDiagnose() {
+  const out = $('diagOut');
+  out.hidden = false;
+  $('copyDiag').hidden = false;
+  $('diagBtn').disabled = true;
+  const lines = [];
+  const log = t => { lines.push(t); out.value = lines.join('\n'); };
+  log('Label print helper diagnose, ' + new Date().toString());
+  log('Printer: ' + (state.printer || $('printerName').textContent));
+  const printer = state.printer || '';
+  let renderParams = '';
+  try { renderParams = dymo.label.framework.createLabelRenderParamsXml({}); } catch (e) { log('Render params error: ' + errorText(e)); }
+
+  const job = state.job && state.job.units[0] ? cleanXml(state.job.units[0].x) : null;
+  const tests = [['A. Label saved from DYMO Connect, unchanged', SAVED_DYMO_LABEL]];
+  if (job) {
+    tests.push(['B. First label from the sheet', job]);
+    tests.push(['C. Same as B, without the first XML line', job.replace(/^<\?xml[^>]*>\s*/, '')]);
+    tests.push(['D. Same as B, with AlwaysFit', job.replace(/ShrinkToFit/g, 'AlwaysFit')]);
+  } else {
+    log('(No labels from the sheet yet. Click Print in the sidebar first to include them in the test.)');
+  }
+  for (const [name, xml] of tests) {
+    log('');
+    log(name);
+    try {
+      const r = await dymoRequest('RenderLabel', { labelXml: xml, renderParamsXml: renderParams, printerName: printer });
+      if (r.status === 200) log('  OK (port ' + r.port + ', preview ' + r.text.length + ' characters)');
+      else log('  FAILED, status ' + r.status + ': ' + r.text.replace(/\s+/g, ' ').slice(0, 600));
+    } catch (err) {
+      log('  Could not reach DYMO: ' + errorText(err));
+    }
+  }
+  if (job) { log(''); log('First label file sent (for reference):'); log(job.slice(0, 3000)); }
+  $('diagBtn').disabled = false;
+}
+
 /* ---------- Printing ---------- */
 async function printAll() {
   if (!state.job || !state.printer || state.busy) return;
@@ -364,6 +429,13 @@ $('autoPrint').checked = store.get('autoPrint') === '1';
 $('autoPrint').addEventListener('change', e => store.set('autoPrint', e.target.checked ? '1' : '0'));
 $('printBtn').addEventListener('click', printAll);
 $('recheck').addEventListener('click', detectPrinter);
+$('diagBtn').addEventListener('click', runDiagnose);
+$('copyDiag').addEventListener('click', () => {
+  const t = $('diagOut');
+  t.select();
+  (navigator.clipboard ? navigator.clipboard.writeText(t.value) : Promise.reject()).catch(() => document.execCommand('copy'));
+  $('copyDiag').textContent = 'Copied';
+});
 window.addEventListener('hashchange', readJob);
 
 detectPrinter();
