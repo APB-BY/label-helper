@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Label print helper</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏷️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1d2433; --muted: #667085; --line: #d7dbe0; --liner: #e2e5e9;
+    --accent: #1f5f8b; --ok: #2e7d4f; --warn: #b7791f; --err: #b42318;
+  }
+  body { margin: 0; font: 15px/1.5 'Work Sans', system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--ink); background: #f6f7f9; }
+  .app { max-width: 560px; margin: 0 auto; padding: 32px 20px 48px; }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 20px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  .printer { display: flex; align-items: center; gap: 12px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+  .printer-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .printer-text span { color: var(--muted); font-size: 13px; }
+  select { margin-top: 12px; width: 100%; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .summary { font-weight: 600; margin: 0 0 12px; }
+  .liner { background: var(--liner); border-radius: 10px; padding: 14px; display: grid;
+           grid-template-columns: repeat(auto-fill, 96px); gap: 12px; justify-content: center; min-height: 96px; }
+  .sticker { position: relative; width: 96px; height: 96px; background: #fff; border-radius: 8px; box-shadow: 0 1px 0 rgba(20, 30, 50, .14); }
+  .sticker img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; border-radius: 8px; }
+  .sticker .ph { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+  .badge { position: absolute; top: -7px; right: -7px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 600;
+           border-radius: 10px; padding: 0 7px; line-height: 20px; }
+  .more { color: var(--muted); font-size: 13px; text-align: center; margin: 8px 0 0; }
+  .primary { width: 100%; margin-top: 14px; padding: 12px; background: var(--accent); color: #fff; border: 0; border-radius: 10px;
+             font: inherit; font-weight: 600; cursor: pointer; }
+  .primary:disabled { background: #a9b4c2; cursor: default; }
+  .link { background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; padding: 0;
+          text-decoration: underline; text-underline-offset: 2px; }
+  .check { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; color: var(--muted); cursor: pointer; }
+  .status { min-height: 1.5em; margin: 0; }
+  .status.error { color: var(--err); } .status.ok { color: var(--ok); font-weight: 600; }
+  .help h2 { font-size: 16px; margin: 0 0 8px; }
+  .help ol { margin: 0; padding-left: 20px; }
+  .help li { margin-bottom: 6px; }
+  code { font-size: 13px; background: #f1f3f5; padding: 1px 4px; border-radius: 4px; word-break: break-all; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main class="app">
+  <h1>Label print helper</h1>
+  <p class="lede">Sends labels from the Label Sheet to the DYMO printer on this computer.</p>
+
+  <section class="card">
+    <div class="printer" aria-live="polite">
+      <span class="dot" id="dot"></span>
+      <div class="printer-text">
+        <strong id="printerName">Looking for your printer…</strong>
+        <span id="printerDetail"></span>
+      </div>
+      <button class="link" id="recheck">Check again</button>
+    </div>
+    <select id="printerSelect" hidden aria-label="Printer"></select>
+  </section>
+
+  <section class="card" id="job" hidden>
+    <p class="summary" id="summary"></p>
+    <div class="liner" id="preview"></div>
+    <p class="more" id="more"></p>
+    <button class="primary" id="printBtn" disabled>Print</button>
+    <label class="check"><input type="checkbox" id="autoPrint"> Print automatically when labels arrive</label>
+  </section>
+
+  <section class="card" id="idle">
+    <p style="margin:0">No labels yet. In the Label Sheet, open the <strong>Labels</strong> menu, choose what to print, and click <strong>Print</strong> in the sidebar. The labels will appear here. You can leave this tab open between batches.</p>
+  </section>
+
+  <section class="card help" id="help" hidden>
+    <h2>Can't reach the DYMO software</h2>
+    <ol>
+      <li>Make sure <strong>DYMO Connect</strong> is installed and open, and the printer is plugged in and on.</li>
+      <li>Open <code>https://127.0.0.1:41951/DYMO/DLS/Printing/StatusConnected</code> in a new tab. If Chrome warns about privacy, click <strong>Advanced</strong>, then <strong>Proceed</strong>. It should say <code>true</code>.</li>
+      <li>If Chrome asked whether this page can access devices on your local network, it needs <strong>Allow</strong>. If you blocked it by accident, click the icon at the left of the address bar, find <strong>Local network access</strong>, set it to <strong>Allow</strong>, and reload this page.</li>
+      <li>Click <strong>Check again</strong> above.</li>
+    </ol>
+  </section>
+
+  <p class="status" id="status" role="status"></p>
+</main>
+
+<script src="https://cdn.jsdelivr.net/gh/dymosoftware/dymo-connect-framework@master/dymo.connect.framework.js"
+        onerror="window.DYMO_LOAD_FAILED = true"></script>
+<script>
+const MAX_PREVIEW = 24;
+const $ = id => document.getElementById(id);
+const state = { job: null, printer: null, busy: false, printed: false };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+};
+
+/* ---------- Receiving labels from the sheet ---------- */
+function b64urlToBytes(s) {
+  s = s.replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+async function unpack(data) {
+  const bytes = b64urlToBytes(data.slice(1));
+  if (data[0] === 'z') {
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return JSON.parse(await new Response(stream).text());
+  }
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+async function readJob() {
+  const m = location.hash.match(/[#&]d=([^&]+)/);
+  if (!m) return;
+  try {
+    const job = await unpack(m[1]);
+    if (!job || !Array.isArray(job.units) || !job.units.length) throw new Error('empty');
+    job.total = job.units.reduce((sum, u) => sum + (u.c || 1), 0);
+    state.job = job;
+    state.printed = false;
+    // Clear the address so reloading this tab never reprints the same batch
+    history.replaceState(null, '', location.pathname + location.search);
+    setStatus('');
+    showJob();
+  } catch (err) {
+    setStatus('These labels couldn’t be read. Go back to the sheet and click Print again.', 'error');
+  }
+}
+
+function showJob() {
+  const job = state.job;
+  $('idle').hidden = true;
+  $('job').hidden = false;
+  $('summary').textContent = `${job.total} label${job.total === 1 ? '' : 's'} ready to print`;
+  document.title = `${job.total} labels · Label print helper`;
+  renderPreview();
+  updateButton();
+  if ($('autoPrint').checked && state.printer) printAll();
+}
+
+/* ---------- Preview drawn by the DYMO software ---------- */
+async function renderPreview() {
+  const wrap = $('preview');
+  wrap.innerHTML = '';
+  const units = state.job.units;
+  const shown = units.slice(0, MAX_PREVIEW);
+  const stickers = shown.map(u => {
+    const st = document.createElement('div');
+    st.className = 'sticker';
+    st.innerHTML = '<span class="ph">…</span>';
+    if (u.c > 1) {
+      const b = document.createElement('span');
+      b.className = 'badge';
+      b.textContent = '×' + u.c;
+      st.appendChild(b);
+    }
+    wrap.appendChild(st);
+    return st;
+  });
+  $('more').textContent = units.length > MAX_PREVIEW ? `Plus ${units.length - MAX_PREVIEW} more not shown.` : '';
+  if (!state.printer) return;
+  try {
+    const params = dymo.label.framework.createLabelRenderParamsXml({});
+    for (let i = 0; i < shown.length; i++) {
+      const png = await Promise.resolve(dymo.label.framework.renderLabelAsync(shown[i].x, params, state.printer));
+      const img = document.createElement('img');
+      img.alt = 'Label ' + (i + 1);
+      img.src = 'data:image/png;base64,' + png;
+      stickers[i].querySelector('.ph').replaceWith(img);
+    }
+  } catch (err) {
+    stickers.forEach(st => { const ph = st.querySelector('.ph'); if (ph) ph.textContent = 'No preview'; });
+  }
+}
+
+/* ---------- Printer ---------- */
+function setPrinterState(kind, name, detail) {
+  $('dot').className = 'dot' + ({ ready: ' ok', offline: ' warn', none: ' warn', noservice: ' err', nolib: ' err' }[kind] || '');
+  $('printerName').textContent = name;
+  $('printerDetail').textContent = detail || '';
+  $('help').hidden = !(kind === 'noservice' || kind === 'nolib');
+  updateButton();
+}
+
+let dymoInitialized = false;
+
+function detectPrinter() {
+  state.printer = null;
+  $('printerSelect').hidden = true;
+  setPrinterState('checking', 'Looking for your printer…', '');
+  if (window.DYMO_LOAD_FAILED || typeof dymo === 'undefined') {
+    setPrinterState('nolib', "DYMO's print library didn't load", 'Check the internet connection and reload this page.');
+    return;
+  }
+  const timeout = setTimeout(() => setPrinterState('noservice', 'DYMO software not reachable', 'See the steps below.'), 20000);
+  const lookup = () => {
+    dymo.label.framework.checkEnvironment(env => {
+      if (!env.isWebServicePresent) {
+        clearTimeout(timeout);
+        setPrinterState('noservice', 'DYMO software not reachable', 'See the steps below.');
+        return;
+      }
+      Promise.resolve(dymo.label.framework.getPrintersAsync()).then(list => {
+        clearTimeout(timeout);
+        const writers = (list || []).filter(p => p.printerType === 'LabelWriterPrinter');
+        if (!writers.length) {
+          setPrinterState('none', 'No LabelWriter found', 'Plug in the printer, turn it on, then click Check again.');
+          return;
+        }
+        const saved = store.get('printer');
+        writers.sort((a, b) =>
+          ((String(b.isConnected) === 'true') - (String(a.isConnected) === 'true')) ||
+          ((b.name === saved) - (a.name === saved)));
+        const sel = $('printerSelect');
+        sel.innerHTML = '';
+        writers.forEach(p => sel.add(new Option(p.name, p.name)));
+        sel.hidden = writers.length < 2;
+        sel.onchange = e => choosePrinter(writers.find(p => p.name === e.target.value));
+        choosePrinter(writers[0]);
+      }, err => {
+        clearTimeout(timeout);
+        setPrinterState('noservice', 'Couldn’t list printers', errorText(err));
+      });
+    });
+  };
+  try {
+    if (dymoInitialized) lookup();
+    else dymo.label.framework.init(() => { dymoInitialized = true; lookup(); });
+  } catch (err) {
+    clearTimeout(timeout);
+    setPrinterState('noservice', 'DYMO software not reachable', errorText(err));
+  }
+}
+
+function choosePrinter(p) {
+  const connected = String(p.isConnected) === 'true';
+  state.printer = connected ? p.name : null;
+  store.set('printer', p.name);
+  if (connected) setPrinterState('ready', p.name, 'Ready');
+  else setPrinterState('offline', p.name, 'Found but not connected. Check the USB cable and power.');
+  if (state.job) {
+    renderPreview();
+    if (connected && !state.printed && $('autoPrint').checked) printAll();
+  }
+}
+
+/* ---------- Printing ---------- */
+async function printAll() {
+  if (!state.job || !state.printer || state.busy) return;
+  state.busy = true;
+  updateButton();
+  const total = state.job.total;
+  let sent = 0;
+  try {
+    for (const u of state.job.units) {
+      const params = dymo.label.framework.createLabelWriterPrintParamsXml({ copies: u.c || 1 });
+      await Promise.resolve(dymo.label.framework.printLabelAsync(state.printer, params, u.x, ''));
+      sent += u.c || 1;
+      setStatus(`Sent ${sent} of ${total} labels…`);
+    }
+    state.printed = true;
+    setStatus(`Printed ${total} label${total === 1 ? '' : 's'}. You can switch back to the sheet.`, 'ok');
+    document.title = 'Printed · Label print helper';
+    try {
+      if (window.opener) window.opener.postMessage({ type: 'dymo-helper-printed', id: state.job.id, total }, '*');
+    } catch (e) { /* the sheet can still mark rows with its own button */ }
+  } catch (err) {
+    setStatus(`Printing stopped after ${sent} labels: ${errorText(err)}`, 'error');
+  } finally {
+    state.busy = false;
+    updateButton();
+  }
+}
+
+/* ---------- UI ---------- */
+function updateButton() {
+  const btn = $('printBtn');
+  if (!state.job) { btn.disabled = true; return; }
+  const n = state.job.total;
+  btn.textContent = state.printed ? 'Print again' : `Print ${n} label${n === 1 ? '' : 's'}`;
+  btn.disabled = !state.printer || state.busy;
+}
+
+function setStatus(msg, kind) { const s = $('status'); s.textContent = msg; s.className = 'status' + (kind ? ' ' + kind : ''); }
+function errorText(err) { return (err && (err.message || err.toString())) || 'Unknown error.'; }
+
+$('autoPrint').checked = store.get('autoPrint') === '1';
+$('autoPrint').addEventListener('change', e => store.set('autoPrint', e.target.checked ? '1' : '0'));
+$('printBtn').addEventListener('click', printAll);
+$('recheck').addEventListener('click', detectPrinter);
+window.addEventListener('hashchange', readJob);
+
+detectPrinter();
+readJob();
+</script>
+</body>
+</html>
