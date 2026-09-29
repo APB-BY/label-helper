@@ -280,6 +280,18 @@ async function sendLabel(xml, copies) {
   await Promise.resolve(dymo.label.framework.printLabelAsync(state.printer, params, xml, ''));
 }
 
+function isConnectFormat(xml) { return xml.indexOf('</DesktopLabel>') !== -1 || xml.indexOf('</DYMOLabel>') !== -1; }
+
+// If DYMO doesn't accept "ShrinkToFit" (fixed font sizes), fall back to fitting the text to the label
+async function sendConnectLabel(xml, copies) {
+  try {
+    await sendLabel(xml, copies);
+  } catch (err) {
+    if (xml.indexOf('ShrinkToFit') === -1) throw err;
+    await sendLabel(xml.replace(/ShrinkToFit/g, 'AlwaysFit'), copies);
+  }
+}
+
 /* ---------- Printing ---------- */
 async function printAll() {
   if (!state.job || !state.printer || state.busy) return;
@@ -292,7 +304,10 @@ async function printAll() {
     for (const u of state.job.units) {
       const copies = u.c || 1;
       const xml = cleanXml(u.x);
-      if (!paper) {
+      if (isConnectFormat(xml)) {
+        // DYMO Connect format names its label size itself; no guessing needed
+        await sendConnectLabel(xml, copies);
+      } else if (!paper) {
         // First label: find the paper name DYMO accepts
         let lastErr = null;
         for (const candidate of paperOrder()) {
