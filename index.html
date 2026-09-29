@@ -92,6 +92,12 @@
         onerror="window.DYMO_LOAD_FAILED = true"></script>
 <script>
 const MAX_PREVIEW = 24;
+// DYMO's name for the 1" x 1" label isn't published, so the helper tries these in order.
+// A rejected name prints nothing; the first one DYMO accepts is remembered on this computer.
+const PAPER_CANDIDATES = [
+  '30332 1 in x 1 in', '30332 Square', '30332 Multi-Purpose', '30332 Multipurpose',
+  '30332 Small Multi-Purpose', '30332 Square Multi-Purpose', '30332'
+];
 const $ = id => document.getElementById(id);
 const state = { job: null, printer: null, busy: false, printed: false };
 const store = {
@@ -171,7 +177,8 @@ async function renderPreview() {
   try {
     const params = dymo.label.framework.createLabelRenderParamsXml({});
     for (let i = 0; i < shown.length; i++) {
-      const png = await Promise.resolve(dymo.label.framework.renderLabelAsync(shown[i].x, params, state.printer));
+      const xml = cleanXml(store.get('paperName') ? withPaper(shown[i].x, store.get('paperName')) : shown[i].x);
+      const png = await Promise.resolve(dymo.label.framework.renderLabelAsync(xml, params, state.printer));
       const img = document.createElement('img');
       img.alt = 'Label ' + (i + 1);
       img.src = 'data:image/png;base64,' + png;
@@ -253,6 +260,26 @@ function choosePrinter(p) {
   }
 }
 
+/* ---------- Label file fixes ---------- */
+function withPaper(xml, paper) {
+  return xml.replace(/<PaperName>[^<]*<\/PaperName>/, '<PaperName>' + paper + '</PaperName>');
+}
+
+// Whole-number font sizes, in case DYMO rejects decimals such as 16.8
+function cleanXml(xml) {
+  return xml.replace(/(<Font\b[^>]*\bSize=")([0-9.]+)"/g, (m, pre, size) => pre + Math.max(1, Math.round(parseFloat(size))) + '"');
+}
+
+function paperOrder() {
+  const saved = store.get('paperName');
+  return saved ? [saved, ...PAPER_CANDIDATES.filter(p => p !== saved)] : PAPER_CANDIDATES.slice();
+}
+
+async function sendLabel(xml, copies) {
+  const params = dymo.label.framework.createLabelWriterPrintParamsXml({ copies });
+  await Promise.resolve(dymo.label.framework.printLabelAsync(state.printer, params, xml, ''));
+}
+
 /* ---------- Printing ---------- */
 async function printAll() {
   if (!state.job || !state.printer || state.busy) return;
@@ -261,10 +288,26 @@ async function printAll() {
   const total = state.job.total;
   let sent = 0;
   try {
+    let paper = null;
     for (const u of state.job.units) {
-      const params = dymo.label.framework.createLabelWriterPrintParamsXml({ copies: u.c || 1 });
-      await Promise.resolve(dymo.label.framework.printLabelAsync(state.printer, params, u.x, ''));
-      sent += u.c || 1;
+      const copies = u.c || 1;
+      const xml = cleanXml(u.x);
+      if (!paper) {
+        // First label: find the paper name DYMO accepts
+        let lastErr = null;
+        for (const candidate of paperOrder()) {
+          try {
+            await sendLabel(withPaper(xml, candidate), copies);
+            paper = candidate;
+            store.set('paperName', candidate);
+            break;
+          } catch (err) { lastErr = err; }
+        }
+        if (!paper) throw new PaperError(lastErr);
+      } else {
+        await sendLabel(withPaper(xml, paper), copies);
+      }
+      sent += copies;
       setStatus(`Sent ${sent} of ${total} labels…`);
     }
     state.printed = true;
@@ -274,11 +317,20 @@ async function printAll() {
       if (window.opener) window.opener.postMessage({ type: 'dymo-helper-printed', id: state.job.id, total }, '*');
     } catch (e) { /* the sheet can still mark rows with its own button */ }
   } catch (err) {
-    setStatus(`Printing stopped after ${sent} labels: ${errorText(err)}`, 'error');
+    if (err instanceof PaperError) {
+      setStatus('DYMO rejected every label size name the helper knows (' + errorText(err.cause) +
+        '). Please send the sheet maintainer a label file saved from DYMO Connect on this computer, so the exact name can be added.', 'error');
+    } else {
+      setStatus(`Printing stopped after ${sent} labels: ${errorText(err)}`, 'error');
+    }
   } finally {
     state.busy = false;
     updateButton();
   }
+}
+
+class PaperError extends Error {
+  constructor(cause) { super('paper'); this.cause = cause; }
 }
 
 /* ---------- UI ---------- */
