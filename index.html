@@ -94,6 +94,7 @@
   <section class="card diag" id="diag">
     <p>Having trouble? Diagnose asks the DYMO software to preview a few test labels (nothing prints) and shows its full answer. Copy the results and send them to whoever maintains the sheet.</p>
     <button class="secondary" id="diagBtn">Diagnose</button>
+    <button class="secondary" id="testPrintBtn">Test print (uses 1 sticker)</button>
     <button class="secondary" id="copyDiag" hidden>Copy results</button>
     <textarea id="diagOut" readonly hidden aria-label="Diagnose results"></textarea>
   </section>
@@ -375,6 +376,30 @@ async function runDiagnose() {
   $('diagBtn').disabled = false;
 }
 
+async function runTestPrint() {
+  const out = $('diagOut');
+  out.hidden = false;
+  $('copyDiag').hidden = false;
+  $('copyDiag').textContent = 'Copy results';
+  const add = t => { out.value = (out.value ? out.value + '\n' : '') + t; };
+  add('');
+  add('Test print of the label saved from DYMO Connect, ' + new Date().toLocaleTimeString());
+  add('Browser: ' + navigator.userAgent);
+  if (!state.printer) { add('  No connected printer. Click Check again at the top of the page.'); return; }
+  $('testPrintBtn').disabled = true;
+  const since = window.DYMO_REPLIES.length;
+  try {
+    await sendLabel(SAVED_DYMO_LABEL, 1);
+    add('  OK: DYMO accepted the print. Check the printer for one sticker.');
+  } catch (err) {
+    add('  FAILED: ' + errorText(err));
+    const reply = lastDymoReply(since);
+    if (reply) add('  ' + reply);
+  } finally {
+    $('testPrintBtn').disabled = false;
+  }
+}
+
 /* ---------- Printing ---------- */
 async function printAll() {
   if (!state.job || !state.printer || state.busy) return;
@@ -449,6 +474,7 @@ $('autoPrint').addEventListener('change', e => store.set('autoPrint', e.target.c
 $('printBtn').addEventListener('click', printAll);
 $('recheck').addEventListener('click', detectPrinter);
 $('diagBtn').addEventListener('click', runDiagnose);
+$('testPrintBtn').addEventListener('click', runTestPrint);
 $('copyDiag').addEventListener('click', () => {
   const t = $('diagOut');
   t.select();
