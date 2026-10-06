@@ -281,14 +281,15 @@ function detectPrinter() {
 }
 
 function choosePrinter(p) {
+  // DYMO sometimes reports a working printer as offline, so printing stays allowed either way
   const connected = String(p.isConnected) === 'true';
-  state.printer = connected ? p.name : null;
+  state.printer = p.name;
   store.set('printer', p.name);
   if (connected) setPrinterState('ready', p.name, 'Ready');
-  else setPrinterState('offline', p.name, 'Found but not connected. Check the USB cable and power.');
+  else setPrinterState('offline', p.name, 'DYMO reports this printer as offline, but it often prints anyway. Try printing.');
   if (state.job) {
     renderPreview();
-    if (connected && !state.printed && $('autoPrint').checked) printAll();
+    if (!state.printed && $('autoPrint').checked) printAll();
   }
 }
 
